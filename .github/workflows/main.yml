@@ -1,4 +1,4 @@
-name: Push-to-EC2
+name: Push2VM
 
 # Trigger deployment only on push to main branch
 on:
@@ -12,9 +12,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout the repository code
       - name: Checkout the files
         uses: actions/checkout@v2
 
+      # Step 2: Set correct permissions for the private key
+      - name: Set SSH key permissions
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          # Optionally add the host to known_hosts
+          ssh-keyscan -t rsa ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
+
+      # Step 3: Deploy to EC2 Server using easingthemes/ssh-deploy action
       - name: Deploy to Server 1
         uses: easingthemes/ssh-deploy@main
         env:
@@ -23,6 +34,7 @@ jobs:
           REMOTE_USER: ${{ secrets.REMOTE_USER }}
           TARGET: ${{ secrets.TARGET }}
 
+      # Step 4: Execute remote SSH commands (e.g., install Apache, deploy the site)
       - name: Executing remote ssh commands using ssh key
         uses: appleboy/ssh-action@master
         with:
