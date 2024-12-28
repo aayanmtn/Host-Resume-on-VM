@@ -1,4 +1,4 @@
-name: Push-to-EC2
+name: Push2VM
 
 # Trigger deployment only on push to main branch
 on:
@@ -12,27 +12,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout the repository code
       - name: Checkout the files
         uses: actions/checkout@v2
 
+      # Step 2: Set correct permissions for the private key
+      - name: Set SSH key permissions
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          # Optionally add the host to known_hosts
+          ssh-keyscan -t rsa ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
+
+      # Step 3: Deploy to EC2 Server using easingthemes/ssh-deploy action
       - name: Deploy to Server 1
         uses: easingthemes/ssh-deploy@main
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
-          REMOTE_HOST: ${{ secrets.HOST_DNS }}
-          REMOTE_USER: ${{ secrets.USERNAME }}
-          TARGET: ${{ secrets.TARGET_DIR }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+          TARGET: ${{ secrets.TARGET }}
 
+      # Step 4: Execute remote SSH commands (e.g., install Apache, deploy the site)
       - name: Executing remote ssh commands using ssh key
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.HOST_DNS }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            sudo apt-get -y update
+            # Update the server
+            sudo apt-get update -y
+
+            # Install Apache2
             sudo apt-get install -y apache2
+
+            # Start and enable Apache2
             sudo systemctl start apache2
             sudo systemctl enable apache2
-            cd home
-            sudo mv * /var/www/html
+
+            # Navigate to the directory where files should be moved (ensure this is the correct directory)
+            cd /home/${{ secrets.REMOTE_USER }}/wordpress  # Update this with the correct path to your files
+
+            # Move files to Apache server's web directory
+            sudo mv * /var/www/html/
+
+            # Set correct permissions
+            sudo chown -R www-data:www-data /var/www/html
+            sudo chmod -R 755 /var/www/html
